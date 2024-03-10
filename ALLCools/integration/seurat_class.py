@@ -298,6 +298,7 @@ class SeuratIntegration:
         k_anchor,
         k_local,
         k_score,
+        score_threshold,
         ncc,
         max_cc_cell,
         k_filter,
@@ -317,12 +318,12 @@ class SeuratIntegration:
         if j_sel is not None:
             adata2 = adata2[j_sel, :]
 
-        if dim_red in ("cca", "pca", "lsi", "lsi-cca"):
+        if dim_red in ("pca-cca", "pca", "lsi", "lsi-cca"):
             # 1. prepare input matrix for CCA
             U, V = self._prepare_matrix(i, j, key_anchor=key_anchor)
 
             # 2. run cca between datasets
-            if dim_red in ("cca", "pca"):
+            if (dim_red == "pca-cca"):
                 print("Run CCA")
                 U, V, high_dim_feature = cca(
                     data1=U,
@@ -337,7 +338,7 @@ class SeuratIntegration:
                     svd_algorithm=svd_algorithm,
                     random_state=random_state,
                 )
-            elif dim_red in ("lsi", "lsi-cca"):
+            elif (dim_red == "lsi-cca"):
                 print("Run LSI-CCA")
                 U, V = lsi_cca(
                     data1=U,
@@ -351,8 +352,6 @@ class SeuratIntegration:
                     random_state=random_state,
                 )
                 high_dim_feature = None
-            else:
-                raise ValueError(f"Dimension reduction method {dim_red} is not supported.")
 
             # 3. normalize CCV per sample/row
             U = normalize(U, axis=1)
@@ -367,7 +366,7 @@ class SeuratIntegration:
             )
 
             # 5. filter anchors by high dimensional neighbors
-            if k_filter is not None and high_dim_feature is not None:
+            if (k_filter is not None) and (high_dim_feature is not None) and ('cca' in dim_red):
                 # compute ccv feature loading
                 if self.n_cells[i] >= self.n_cells[j]:
                     raw_anchors = filter_anchor(
@@ -458,6 +457,9 @@ class SeuratIntegration:
             Gp1=self.local_knn[i],
             Gp2=self.local_knn[j],
         )
+        if score_threshold is not None:
+            anchor_df = anchor_df.loc[anchor_df["score"] > score_threshold]
+
         return anchor_df
 
     def find_anchor(
@@ -467,7 +469,7 @@ class SeuratIntegration:
         k_local=None,
         key_local="X_pca",
         key_anchor="X",
-        dim_red="pca",
+        dim_red="pca-cca",
         svd_algorithm="randomized",
         scale1=True,
         scale2=True,
@@ -479,6 +481,7 @@ class SeuratIntegration:
         chunk_size=50000,
         k_anchor=5,
         k_score=30,
+        score_threshold=None,
         alignments=None,
         random_state=0,
         signorm=True,
@@ -533,6 +536,7 @@ class SeuratIntegration:
                         k_anchor=k_anchor,
                         k_local=k_local,
                         k_score=k_score,
+                        score_threshold=score_threshold,
                         ncc=n_components,
                         max_cc_cell=max_cc_cells,
                         k_filter=k_filter,
@@ -544,6 +548,12 @@ class SeuratIntegration:
                 else:
                     tissue = [xx.obs[key_match].unique() for xx in adata_list]
                     sharet = list(set(tissue[i]).intersection(tissue[j]))
+                    if 'pca' in dim_red:
+                        dim_red1, dim_red2 = 'pca-cca', 'pca'
+                    elif 'lsi' in dim_red:
+                        dim_red1, dim_red2 = 'lsi-cca', 'lsi'
+                    else:
+                        raise ValueError(f"Dimension reduction method {dim_red} is not supported.")
                     if len(sharet) > 0:
                         anchor_df_list = []
                         for t in sharet:
@@ -558,7 +568,7 @@ class SeuratIntegration:
                                 i_sel=idx1,
                                 j=j,
                                 j_sel=idx2,
-                                dim_red=dim_red,
+                                dim_red=dim_red1,
                                 key_anchor=key_anchor,
                                 svd_algorithm=svd_algorithm,
                                 scale1=scale1,
@@ -566,6 +576,7 @@ class SeuratIntegration:
                                 k_anchor=k_anchor,
                                 k_local=k_local,
                                 k_score=k_score,
+                                score_threshold=score_threshold,
                                 ncc=n_components,
                                 max_cc_cell=max_cc_cells,
                                 k_filter=k_filter,
@@ -584,7 +595,7 @@ class SeuratIntegration:
                             i_sel=None,
                             j=j,
                             j_sel=None,
-                            dim_red="rpca",
+                            dim_red=dim_red2,
                             key_anchor=key_anchor,
                             svd_algorithm=svd_algorithm,
                             scale1=scale1,
@@ -592,6 +603,7 @@ class SeuratIntegration:
                             k_anchor=k_anchor,
                             k_local=k_local,
                             k_score=k_score,
+                            score_threshold=score_threshold,
                             ncc=n_components,
                             max_cc_cell=max_cc_cells,
                             k_filter=k_filter,
