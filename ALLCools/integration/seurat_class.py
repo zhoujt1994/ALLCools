@@ -616,7 +616,7 @@ class SeuratIntegration:
                 # save anchors
                 self.anchor[(i, j)] = anchor_df.copy()
                 print(f"Identified {len(self.anchor[i, j])} anchors between datasets {i} and {j}.")
-        return anchor_df
+        return
 
     def find_nearest_anchor(
         self, data, data_qry, ref, qry, key_correct="X_pca", npc=30, k_weight=100, sd=1, random_state=0
