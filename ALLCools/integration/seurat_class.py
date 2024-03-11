@@ -488,7 +488,7 @@ class SeuratIntegration:
         key_match=None,
     ):
         """Find anchors for each dataset pair."""
-        valid_dim_red_name = ["pca", "cca", "lsi", "lsi-cca", "rpca", "rlsi"]
+        valid_dim_red_name = ["pca", "pca-cca", "lsi", "lsi-cca", "rpca", "rlsi"]
         if dim_red not in valid_dim_red_name:
             raise ValueError(f"Dimension reduction method {dim_red} is not supported.")
 
