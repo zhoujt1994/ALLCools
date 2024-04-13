@@ -115,7 +115,7 @@ def _leiden_runner(g, random_states, partition_type, **partition_kwargs):
         results.append(groups)
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore")
-        result_df = pd.DataFrame(results, columns=random_states)
+        result_df = pd.DataFrame(results, index=random_states).T
     return result_df
 
 
