@@ -641,6 +641,9 @@ class SeuratIntegration:
                 tmp["x2"] += cum_qry[j]
                 anchor.append(tmp)
         anchor = pd.concat(anchor)
+        if len(anchor) == 0:
+            return anchor, None, None, cum_qry
+
         score = anchor["score"].values
         anchor = anchor[["x1", "x2"]].values
 
@@ -700,7 +703,8 @@ class SeuratIntegration:
             sd=sd,
             random_state=random_state,
         )
-
+        if len(anchor) == 0:
+            return data
         print("Transform data")
         bias = data_ref[anchor[:, 0]] - data_qry[anchor[:, 1]]
         data_prj = np.zeros(data_qry.shape)
@@ -726,7 +730,7 @@ class SeuratIntegration:
             dist = []
             for i in range(self.n_dataset - 1):
                 for j in range(i + 1, self.n_dataset):
-                    dist.append(len(self.anchor[(i, j)]) / min([self.n_cells[i], self.n_cells[j]]))
+                    dist.append((len(self.anchor[(i, j)]) + 1) / min([self.n_cells[i], self.n_cells[j]]))
             self.alignments = find_order(np.array(dist), self.n_cells)
             print(f"Alignments: {self.alignments}")
 
