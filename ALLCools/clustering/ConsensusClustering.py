@@ -404,7 +404,7 @@ class ConsensusClustering:
         clusters = {}
         while data.shape[1] > 1:
             seed_cell = data.pop(data.columns[0])
-            distance = pairwise_distances(X=data.T, Y=seed_cell.values[None, :], metric="hamming").ravel()
+            distance = (data.values!=seed_cell.values[:,None]).sum(axis=0) / data.shape[0]
 
             judge = distance < (1 - self.consensus_rate)
             this_cluster_cells = [seed_cell.name] + data.columns[judge].to_list()
