@@ -654,6 +654,10 @@ class SeuratIntegration:
             reduce_qry = data_qry[:, :npc]
 
         print("Find nearest anchors", end=". ")
+        k_weight = min(k_weight, anchor.shape[0])
+        # k_weight = max(1, k_weight)
+        print("k_weight: ", k_weight, end="\n")
+
         index = pynndescent.NNDescent(
             reduce_qry[anchor[:, 1]],
             metric="euclidean",
@@ -662,17 +666,14 @@ class SeuratIntegration:
             parallel_batch_queries=True,
             n_jobs=self.n_jobs,
         )
-        k_weight = min(k_weight, anchor.shape[0] - 5)
-        k_weight = max(5, k_weight)
-        print("k_weight: ", k_weight, end="\n")
         G, D = index.query(reduce_qry, k=k_weight)
 
         print("Normalize graph")
         cell_filter = D[:, -1] == 0
         D = (1 - D / D[:, -1][:, None]) * score[G]
         D[cell_filter] = score[G[cell_filter]]
-        D = 1 - np.exp(-D * (sd**2) / 4)
-        D = D / (np.sum(D, axis=1) + 1e-6)[:, None]
+        D = 1 - np.exp(-D * (sd**2) / 4) + 1e-6
+        D = D / np.sum(D, axis=1)[:, None]
         return anchor, G, D, cum_qry
 
     def transform(
