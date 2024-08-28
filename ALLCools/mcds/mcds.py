@@ -952,7 +952,7 @@ class MCDS(xr.Dataset):
                     chunk_da = chunk_da.sel({var_dim: use_vars})
 
                 if sparse:
-                    chunk = ss.csr_matrix(chunk_da.values)
+                    chunk = ss.csr_matrix(chunk_da.values.astype(dtype))
                 else:
                     chunk = chunk_da.values
 
