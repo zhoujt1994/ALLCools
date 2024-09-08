@@ -30,7 +30,7 @@ def bin_sf(cov, mc, p):
         return 0
 
 
-def _count_single_allc(allc_path, bed_path, mc_pattern, output_dir, cutoff=0.9, reverse_value=False):
+def _count_single_allc(allc_path, bed_path, mc_pattern, output_dir, p=None, cutoff=0.9, reverse_value=False):
     patterns = parse_mc_pattern(mc_pattern)
     region_bed = _read_region_bed(bed_path)
 
@@ -56,8 +56,9 @@ def _count_single_allc(allc_path, bed_path, mc_pattern, output_dir, cutoff=0.9, 
         bin_counts = pd.DataFrame(records, columns=["idx", "mc", "cov"]).set_index("idx")
 
     # calculate binom sf (1-cdf) value, hypo bins are close to 1, hyper bins are close to 0
-    mc_sum, cov_sum = bin_counts.sum()
-    p = mc_sum / (cov_sum + 0.000001)  # prevent empty allc error
+    if p is None:
+        mc_sum, cov_sum = bin_counts.sum()
+        p = mc_sum / (cov_sum + 0.000001)  # prevent empty allc error
     pv = bin_counts.apply(lambda x: bin_sf(x["cov"], x["mc"], p), axis=1).astype("float16")
     if reverse_value:
         # use cdf instead of sf when looking for hyper methylation
@@ -78,6 +79,7 @@ def generate_mcad(
     bed_path,
     output_prefix,
     mc_context,
+    global_path=None,
     cpu=1,
     cleanup=True,
     cutoff=0.9,
@@ -98,6 +100,8 @@ def generate_mcad(
         Output prefix of the MCAD, a suffix ".mcad" will be added.
     mc_context
         {mc_context_doc}
+    global_path
+        Path to a global MC table, if provided, the global MC will be used to calculate the p value
     cleanup
         Whether remove temp files or not
     cutoff
@@ -110,13 +114,17 @@ def generate_mcad(
         raise ValueError(f"Cutoff must between 0 to 1, got {cutoff}.")
 
     # allc table has 2 columns: cell_id \t allc_path
-    allc_paths = pd.read_csv(allc_table, sep="\t", index_col=0, header=None, squeeze=True)
+    allc_paths = pd.read_csv(allc_table, sep="\t", index_col=0, header=None).squeeze()
     allc_paths.index.name = "cell"
 
     # temp dir
     _name = pathlib.Path(output_prefix).name
     temp_dir = pathlib.Path(f"{_name}_pv_temp")
     temp_dir.mkdir(exist_ok=True)
+
+    if global_path:
+        global_mc = pd.read_csv(global_path, sep="\t", index_col=0, header=None).squeeze()
+        global_mc.index.name = "cell"
 
     # calculating individual cells
     with ProcessPoolExecutor(cpu) as executor:
@@ -133,6 +141,7 @@ def generate_mcad(
                 bed_path=bed_path,
                 mc_pattern=mc_context,
                 output_dir=temp_dir,
+                p=global_mc.loc[cell_id],
                 cutoff=cutoff,
                 reverse_value=reverse_value,
             )

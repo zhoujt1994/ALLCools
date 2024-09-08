@@ -28,9 +28,10 @@ def _bin_sf(cov, mc, p):
         return 0
 
 
-def _cell_sf(cell_count_df):
-    mc_sum, cov_sum = cell_count_df.sum()
-    p = mc_sum / (cov_sum + 0.000001)  # prevent empty allc error
+def _cell_sf(cell_count_df, p=None):
+    if p is None:
+        mc_sum, cov_sum = cell_count_df.sum()
+        p = mc_sum / (cov_sum + 0.000001)  # prevent empty allc error
     pv = cell_count_df.apply(lambda x: _bin_sf(x["cov"], x["mc"], p), axis=1).astype("float16")
     return pv
 
@@ -190,10 +191,15 @@ def _count_single_region_set(allc_table, region_config, obs_dim, region_dim):
     return total_data
 
 
-def _calculate_pv(data, reverse_value, obs_dim, var_dim, cutoff=0.9):
+def _calculate_pv(data, reverse_value, obs_dim, var_dim, global_path=None, cutoff=0.9):
+    
+    if global_path:
+        global_mc = pd.read_csv(global_path, sep="\t", index_col=0, header=None).squeeze()
+        global_mc.index.name = "cell"
+
     pv = []
     for cell in data.get_index(obs_dim):
-        value = _cell_sf(data.sel(cell=cell).to_pandas())
+        value = _cell_sf(data.sel(cell=cell).to_pandas(), global_mc.loc[cell])
         pv.append(value)
     pv = np.array(pv)
 
@@ -208,7 +214,7 @@ def _calculate_pv(data, reverse_value, obs_dim, var_dim, cutoff=0.9):
 
 
 def _count_single_zarr(
-    allc_table, region_config, obs_dim, region_dim, output_path, obs_dim_dtype, count_dtype="uint32"
+    allc_table, region_config, obs_dim, region_dim, output_path, obs_dim_dtype, global_path=None, count_dtype="uint32"
 ):
     """Process single region set and its quantifiers."""
     # count all ALLC and mC types that's needed for quantifiers if this region_dim
@@ -238,6 +244,7 @@ def _count_single_zarr(
                     reverse_value=False,
                     obs_dim=obs_dim,
                     var_dim=region_dim,
+                    global_path=global_path,
                     **quant.kwargs,
                 )
                 total_ds[f"{region_dim}_da_{mc_type}-hypo-score"] = data
@@ -248,6 +255,7 @@ def _count_single_zarr(
                     reverse_value=True,
                     obs_dim=obs_dim,
                     var_dim=region_dim,
+                    global_path=global_path,
                     **quant.kwargs,
                 )
                 total_ds[f"{region_dim}_da_{mc_type}-hyper-score"] = data
@@ -268,7 +276,7 @@ def _count_single_zarr(
     chunk_size_doc=generate_dataset_chunk_size_doc,
 )
 def generate_dataset(
-    allc_table, output_path, regions, quantifiers, chrom_size_path, obs_dim="cell", cpu=1, chunk_size=None
+    allc_table, output_path, regions, quantifiers, chrom_size_path, global_path=None, obs_dim="cell", cpu=1, chunk_size=None
 ):
     """\
     {generate_dataset_doc}
@@ -285,6 +293,8 @@ def generate_dataset(
         {quantifiers_doc}
     chrom_size_path
         {chrom_size_path_doc}
+    global_path
+        Path to a global MC table, if provided, the global MC will be used to calculate the p value
     obs_dim
         {obs_dim_doc}
     cpu
@@ -333,6 +343,7 @@ def generate_dataset(
                     region_dim=region_dim,
                     output_path=chunk_path,
                     obs_dim_dtype=obs_dim_dtype,
+                    global_path=global_path,
                 )
                 futures[f] = (region_dim, i)
 

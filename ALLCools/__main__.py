@@ -647,6 +647,8 @@ def generate_mcad_register_subparser(subparser):
 
     parser_req.add_argument("--mc_context", type=str, required=True, help=mc_context_mcad_doc)
 
+    parser.add_argument("--global_path", type=str, default=None, help="Path to a global MC table in tsv.")
+
     parser.add_argument("--cpu", type=int, default=1, help=cpu_basic_doc)
 
     parser.add_argument(
@@ -692,6 +694,8 @@ def generate_dataset_register_subparser(subparser):
     parser_req.add_argument("--output_path", type=str, required=True, help="Output path of the MCDS dataset")
 
     parser_req.add_argument("--chrom_size_path", type=str, required=True, help=chrom_size_path_doc)
+
+    parser.add_argument("--global_path", type=str, default=None, help="Path to a global MC table in tsv.")
 
     parser.add_argument("--obs_dim", type=str, default="cell", help=generate_dataset_obs_dim_doc)
 
