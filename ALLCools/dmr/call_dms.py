@@ -102,17 +102,18 @@ def _perform_rms_batch(output_dir, allc_paths, samples, region, max_row_count, n
     residual_da = xr.DataArray(site_matrix[:, :, 2], coords=[samples, pos_order], dims=["sample", "pos"])
     if da.get_index("pos").size == 0:
         # pos dtype is wrong in case there is not record at all
-        da.coords["pos"] = da.coords["pos"].astype(int)
+        da.assign_coords({"pos": da.coords["pos"].astype(int)})
 
     p_values = pd.Series(p_values, dtype="float64")
+    site_filter = (p_values.values <= min_pvalue)
     p_values.index.name = "pos"
-    da.coords["p-values"] = p_values
+    da = da.assign_coords({"p-values": ("pos", p_values[site_filter])})
 
     contexts = pd.Series(contexts, dtype="object")
     contexts.index.name = "pos"
-    da.coords["contexts"] = contexts
+    da = da.assign_coords({"contexts": ("pos", contexts[site_filter])})
 
-    da.coords["chrom"] = pd.Series(region.split(":")[0], index=da.get_index("pos"))
+    da = da.assign_coords({"chrom": ("pos", pd.Series(region.split(":")[0], index=da.get_index("pos")))})
     ds = xr.Dataset({"dms_da": da, "dms_residual": residual_da})
     with np.errstate(divide="ignore"):
         ds["dms_da_frac"] = da.sel(count_type="mc") / da.sel(count_type="cov")
@@ -122,12 +123,12 @@ def _perform_rms_batch(output_dir, allc_paths, samples, region, max_row_count, n
     ds = ds.sortby([ds.coords["chrom"], ds.coords["pos"]])
     ds = ds.rename({"pos": "dms"})
     # pos is still the genome coords
-    ds.coords["pos"] = ds.coords["dms"].copy()
+    ds = ds.assign_coords({"pos": ("dms", ds.coords["dms"].values)})
     # set str coords otherwise the zarr saving raise error
-    ds.coords["chrom"] = ds.coords["chrom"].astype("str")
+    ds = ds.assign_coords({"chrom": ("dms", ds.coords["chrom"].astype("str").values)})
     # reset index to dms_id with int range
-    ds.coords["dms"] = ds.coords["chrom"].to_pandas().astype(str) + "-" + ds.coords["dms"].to_pandas().astype(str)
-    ds.coords["contexts"] = ds.coords["contexts"].astype("str")
+    ds = ds.assign_coords({"dms": ds.coords["chrom"].to_pandas().astype(str) + "-" + ds.coords["dms"].to_pandas().astype(str)})
+    ds = ds.assign_coords({"contexts": ("dms", ds.coords["contexts"].astype("str").values)})
 
     # rename none dimensional coords to prevent collision when merge with other ds
     ds = ds.rename({k: f"dms_{k}" for k in ds.coords.keys() if k not in ds.dims})

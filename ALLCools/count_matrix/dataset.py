@@ -199,7 +199,10 @@ def _calculate_pv(data, reverse_value, obs_dim, var_dim, global_path=None, cutof
 
     pv = []
     for cell in data.get_index(obs_dim):
-        value = _cell_sf(data.sel(cell=cell).to_pandas(), global_mc.loc[cell])
+        if global_path is None:
+            value = _cell_sf(data.sel(cell=cell).to_pandas())
+        else:
+            value = _cell_sf(data.sel(cell=cell).to_pandas(), global_mc.loc[cell])
         pv.append(value)
     pv = np.array(pv)
 
@@ -374,11 +377,11 @@ def generate_dataset(
         # append region bed to the saved ds
         ds = xr.Dataset()
         for col, data in bed.items():
-            ds.coords[col] = data
+            ds = ds.assign_coords({col: (region_dim, data)})
         # change object dtype to string
         for k in ds.coords.keys():
             if ds.coords[k].dtype == "O":
-                ds.coords[k] = ds.coords[k].astype(str)
+                ds = ds.assign_coords({k: ds.coords[k].astype(str)})
         ds.to_zarr(f"{output_path}/{region_dim}", mode="a")
 
     # delete tmp

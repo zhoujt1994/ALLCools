@@ -74,7 +74,7 @@ def _call_dmr_single_chrom(
         cur_dmr_id += 1
     dmr_ids = pd.Series(dmr_dict)
     dmr_ids.index.name = "dms"
-    ds.coords["dmr"] = dmr_ids
+    ds = ds.assign_coords({"dmr": ("dms", dmr_ids)})
 
     # step 4: determine sample hypo or hyper in each DMS and DMR based on residual
     if residual_quantile < 0.5:
@@ -112,16 +112,13 @@ def _call_dmr_single_chrom(
     # add n dms counts
     n_dms = dmr_ids.value_counts().sort_index()
     n_dms.index.name = "dmr"
-    dmr_ds.coords["ndms"] = n_dms
+    dmr_ds = dmr_ds.assign_coords({"ndms": ("dmr", n_dms)})
     # add genome coords
-    dmr_ds.coords["chrom"] = pd.Series(
-        [chrom for _ in range(dmr_ds.get_index("dmr").size)],
-        index=dmr_ds.get_index("dmr"),
-    )
-    dmr_ds.coords["start"] = ds["dms_pos"].groupby(ds["dmr"]).min().to_pandas() - 1
-    dmr_ds.coords["end"] = ds["dms_pos"].groupby(ds["dmr"]).max().to_pandas() + 1
-    dmr_ds.coords["length"] = dmr_ds.coords["end"] - dmr_ds.coords["start"]
-    dmr_ds.coords["dmr"] = dmr_ds["chrom"].to_pandas().astype(str) + "-" + dmr_ds["dmr"].to_pandas().astype(str)
+    dmr_ds = dmr_ds.assign_coords({"chrom": ("dmr", ds["dms_chrom"].groupby(ds["dmr"]).first().to_pandas())})
+    dmr_ds = dmr_ds.assign_coords({"start": ("dmr", ds["dms_pos"].groupby(ds["dmr"]).min().to_pandas() - 1)})
+    dmr_ds = dmr_ds.assign_coords({"end": ("dmr", ds["dms_pos"].groupby(ds["dmr"]).max().to_pandas() + 1)})
+    dmr_ds = dmr_ds.assign_coords({"length": ("dmr", dmr_ds.coords["end"].values - dmr_ds.coords["start"].values)})
+    dmr_ds = dmr_ds.assign_coords({"dmr": ("dmr", dmr_ds["chrom"].to_pandas().astype(str) + "-" + dmr_ds["dmr"].to_pandas().astype(str))})
 
     # rename none dimensional coords to prevent collision when merge with other ds
     dmr_ds = dmr_ds.rename({k: f"dmr_{k}" for k in dmr_ds.coords.keys() if k not in dmr_ds.dims})
@@ -217,7 +214,8 @@ def collapse_replicates(region_ds, replicate_label, state_da="dmr_state"):
     if not isinstance(replicate_label, str):
         # assume the replicate label is provided as a series or dataarray
         # that can be added into coords
-        region_ds.coords["replicate_label"] = replicate_label
+        region_ds.assign_coords({"replicate_label": ("sample", replicate_label)})
+        # region_ds.coords["replicate_label"] = replicate_label
         replicate_label_name = "replicate_label"
     else:
         replicate_label_name = replicate_label
